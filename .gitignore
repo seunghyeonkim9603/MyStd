@@ -289,3 +289,7 @@ __pycache__/
 
 # Executables
 *.exe
+
+# ETC
+*.txt
+
