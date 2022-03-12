@@ -21,15 +21,12 @@
     <ClInclude Include="AllocationHistoryManager.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="AllocationHistoryArray.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AllocationHistory.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="AllocationHistoryArray.cpp">
+    <ClCompile Include="AllocationHistoryManager.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>

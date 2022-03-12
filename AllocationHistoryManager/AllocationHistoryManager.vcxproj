@@ -140,11 +140,10 @@
   <ItemGroup>
     <ClInclude Include="AllocationHistory.h" />
     <ClInclude Include="AllocationHistoryManager.h" />
-    <ClInclude Include="AllocationHistoryArray.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AllocationHistory.cpp" />
-    <ClCompile Include="AllocationHistoryArray.cpp" />
+    <ClCompile Include="AllocationHistoryManager.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
