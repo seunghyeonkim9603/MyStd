@@ -7,7 +7,7 @@ RingBuffer::RingBuffer()
 {
 }
 
-RingBuffer::RingBuffer(int capacity)
+RingBuffer::RingBuffer(const int capacity)
 	:mBuffer(new char[capacity + 1]),
 	mCapacity(capacity + 1)
 {
@@ -20,7 +20,7 @@ RingBuffer::~RingBuffer()
 	delete mBuffer;
 }
 
-bool RingBuffer::TryEnqueue(const char* data, int length)
+bool RingBuffer::TryEnqueue(const char* data, const int length)
 {
 	if (GetUnusedSize() < length)
 	{
@@ -33,7 +33,7 @@ bool RingBuffer::TryEnqueue(const char* data, int length)
 	}
 	else
 	{
-		int directEnqueueableSize = GetDirectEnqueueableSize();
+		const int directEnqueueableSize = GetDirectEnqueueableSize();
 
 		if (length <= directEnqueueableSize)
 		{
@@ -50,7 +50,7 @@ bool RingBuffer::TryEnqueue(const char* data, int length)
 	return true;
 }
 
-bool RingBuffer::TryDequeue(char* outDest, int length)
+bool RingBuffer::TryDequeue(char* outDest, const int length)
 {
 	if (!TryPeek(outDest, length))
 	{
@@ -61,7 +61,7 @@ bool RingBuffer::TryDequeue(char* outDest, int length)
 	return true;
 }
 
-bool RingBuffer::TryPeek(char* outDest, int length) const
+bool RingBuffer::TryPeek(char* outDest, const int length) const
 {
 	if (GetSize() < length)
 	{
@@ -74,7 +74,7 @@ bool RingBuffer::TryPeek(char* outDest, int length) const
 	}
 	else
 	{
-		int directDequeueableSize = GetDirectDequeueableSize();
+		const int directDequeueableSize = GetDirectDequeueableSize();
 
 		if (length <= directDequeueableSize)
 		{
@@ -89,7 +89,7 @@ bool RingBuffer::TryPeek(char* outDest, int length) const
 	return true;
 }
 
-void RingBuffer::Reserve(int newCapacity)
+void RingBuffer::Reserve(const int newCapacity)
 {
 	if (newCapacity <= mCapacity)
 	{
@@ -173,12 +173,12 @@ char* RingBuffer::GetRear() const
 	return &mBuffer[mRear];
 }
 
-void RingBuffer::MoveFront(int offset)
+void RingBuffer::MoveFront(const int offset)
 {
 	mFront = (mFront + offset) % mCapacity;
 }
 
-void RingBuffer::MoveRear(int offset)
+void RingBuffer::MoveRear(const int offset)
 {
 	mRear = (mRear + offset) % mCapacity;
 }
