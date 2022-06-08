@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stack>
+#include <vector>
 
 template<typename T>
 class ObjectPool final
@@ -21,7 +21,7 @@ public:
 	void GetInactiveCount() const;
 
 private:
-	std::stack<char*> mPool;
+	std::vector<char*> mPool;
 	size_t mAllCount;
 	size_t mActiveCount;
 };
@@ -31,11 +31,11 @@ inline ObjectPool<T>::ObjectPool(size_t size)
 	: mAllCount(size),
 	mActiveCount(0)
 {
-	mPool.
+	mPool.reserve(size);
 
 	for (size_t i = 0; i < size; ++i)
 	{
-		mPool.push(new char[sizeof(T)]);
+		mPool.push_back(new char[sizeof(T)]);
 	}
 }
 
@@ -59,8 +59,8 @@ inline T* ObjectPool<T>::GetObject(TArgs&&... args)
 		++mAllCount;
 		return new T(std::forward<TArgs>(args)...);
 	}
-	T* obj = reinterpret_cast<T*>(mPool.top());
-	mPool.pop();
+	T* obj = reinterpret_cast<T*>(mPool.back());
+	mPool.pop_back();
 
 	obj = new (obj) T(std::forward<TArgs>(args)...);
 
@@ -72,7 +72,7 @@ inline void ObjectPool<T>::ReleaseObject(T* obj)
 {
 	obj->T::~T();
 
-	mPool.push(reinterpret_cast<char*>(obj));
+	mPool.push_back(reinterpret_cast<char*>(obj));
 	--mActiveCount;
 }
 
