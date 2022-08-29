@@ -1,48 +1,50 @@
 #pragma once
 
-#include <memory>
-
 template<typename T>
 class Stack final
 {
 public:
+	struct Node
+	{
+		T		Data;
+		Node*	Next;
+	};
+public:
 	Stack();
-	Stack(size_t capacity);
 	~Stack();
 	Stack(Stack<T>& other);
-	
+
 	Stack<T>& operator=(Stack<T>& other);
 
-	void Push(T val);
-	T Pop();
-	void Reserve(size_t newCapacity);
-	bool IsEmpty();
+	void			Push(T data);
+	T				Pop();
+	bool			IsEmpty() const;
+	unsigned int	GetSize() const;
 
 private:
-	enum { DEFAULT_SIZE = 256 };
-	T* mStack;
-	size_t mCapacity;
-	int mTop;
+	Node* mTop;
+	unsigned int mSize;
 };
 
 template<typename T>
 inline Stack<T>::Stack()
-	: Stack(DEFAULT_SIZE)
-{
-}
-
-template<typename T>
-inline Stack<T>::Stack(size_t capacity)
-	: mTop(-1),
-	mCapacity(capacity)
-	mStack(new T[capacity])
+	:	mTop(nullptr),
+		mSize(0)
 {
 }
 
 template<typename T>
 inline Stack<T>::~Stack()
 {
-	delete[] mStack;
+	Node* cur;
+
+	cur = mTop;
+	while (cur != nullptr)
+	{
+		Node* next = cur->Next;
+		delete cur;
+		cur = next;
+	}
 }
 
 template<typename T>
@@ -88,11 +90,6 @@ inline T Stack<T>::Pop()
 
 	}
 	return T();
-}
-
-template<typename T>
-inline void Stack<T>::Reserve(size_t newCapacity)
-{
 }
 
 template<typename T>

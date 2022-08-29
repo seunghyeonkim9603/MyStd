@@ -1,10 +1,19 @@
 #pragma once
 
-#include <vector>
+#define MAKE_TOP(ptr, op_count) reinterpret_cast<Node*>((ptr) | ((op_count) << 48))
+#define REMOVE_OP_COUNT_FROM(ptr) reinterpret_cast<Node*>((ptr) & 0x00007FFFFFFFFFFF)
+#define EXTRACT_OP_COUNT_FROM(ptr) reinterpret_cast<unsigned short>((ptr) >> 48)
 
 template<typename T>
 class ObjectPool final
 {
+public:
+	struct Node
+	{
+		T*		Obj;
+		Node*	Next;
+	};
+
 public:
 	ObjectPool(size_t size, bool bIsPlacementNew);
 	ObjectPool(ObjectPool& other) = delete;
@@ -12,41 +21,49 @@ public:
 	~ObjectPool();
 
 	template<typename ...TArgs>
-	T* GetObject(TArgs&&... args);
-
-	void ReleaseObject(T* obj);
+	T*		GetObject(TArgs&&... args);
+	void	ReleaseObject(T* obj);
 
 	size_t GetAllCount() const;
 	size_t GetActiveCount() const;
 	size_t GetInactiveCount() const;
 
 private:
-	std::vector<char*> mPool;
-	size_t mAllCount;
-	size_t mActiveCount;
-	bool mbIsPlacementNew;
+	Node*	mTop;
+	size_t	mAllCount;
+	size_t	mActiveCount;
+	bool	mbIsPlacementNew;
 };
 
 template<typename T>
 inline ObjectPool<T>::ObjectPool(size_t size, bool bIsPlacementNew)
-	: mAllCount(size),
-	mActiveCount(0),
-	mbIsPlacementNew(bIsPlacementNew)
+	:	mTop(nullptr),
+		mAllCount(size),
+		mActiveCount(0),
+		mbIsPlacementNew(bIsPlacementNew)
 {
-	mPool.reserve(size);
-
 	if (bIsPlacementNew)
 	{
 		for (size_t i = 0; i < size; ++i)
 		{
-			mPool.push_back(new char[sizeof(T)]);
+			Node* newNode = new Node();
+			{
+				newNode->Obj = reinterpret_cast<char*>(new char[sizeof(T)]);
+				newNode->Next = mTop;
+			}
+			mTop = newNode;
 		}
 	}
 	else
 	{
 		for (size_t i = 0; i < size; ++i)
 		{
-			mPool.push_back(reinterpret_cast<char*>(new T()));
+			Node* newNode = new Node();
+			{
+				newNode->Obj = new T();
+				newNode->Next = mTop;
+			}
+			mTop = newNode;
 		}
 	}
 }
@@ -54,20 +71,27 @@ inline ObjectPool<T>::ObjectPool(size_t size, bool bIsPlacementNew)
 template<typename T>
 inline ObjectPool<T>::~ObjectPool()
 {
+	Node* cur = REMOVE_OP_COUNT_FROM(mTop);
+	Node* next;
+
 	if (mbIsPlacementNew)
 	{
-		for (int i = 0; i < mPool.size(); ++i)
+		while (cur != nullptr)
 		{
-			delete mPool[i];
+			next = cur->Next;
+			delete reinterpret_cast<char*>(cur->Obj);
+			delete cur;
+			cur = next;
 		}
 	}
 	else
 	{
 		for (int i = 0; i < mPool.size(); ++i)
 		{
-			T* obj = reinterpret_cast<T*>(mPool[i]);
-
-			delete obj;
+			next = cur->Next;
+			delete cur->Obj;
+			delete cur;
+			cur = next;
 		}
 	}
 }
@@ -76,21 +100,40 @@ template<typename T>
 template<typename ...TArgs>
 inline T* ObjectPool<T>::GetObject(TArgs&&... args)
 {
-	++mActiveCount;
-
-	if (mPool.empty())
+	if (mTop == nullptr)
 	{
-		++mAllCount;
-		return new T(std::forward<TArgs>(args)...);
+		InterlockedIncrement64(&mAllCount);
+
+		Node* newNode = new Node();
+		{
+			newNode->Obj = new T(std::forward<TArgs>(args)...);
+		}
+		return reinterpret_cast<T*>(newNode);
 	}
-	T* obj = reinterpret_cast<T*>(mPool.back());
-	mPool.pop_back();
+
+	Node* oldTop;
+	Node* newTop;
+
+	while (true)
+	{
+		oldTop = mTop;
+		unsigned short opCount = EXTRACT_OP_COUNT_FROM(oldTop);
+		newTop = MAKE_TOP(oldTop->Next, opCount + 1);
+
+		if (InterlockedCompareExchangePointer(&mTop, newTop, oldTop) == oldTop)
+		{
+			break;
+		}
+	}
+	oldTop = REMOVE_OP_COUNT_FROM(oldTop);
 
 	if (mbIsPlacementNew)
 	{
-		obj = new (obj) T(std::forward<TArgs>(args)...);
+		new (oldTop->Obj) T(std::forward<TArgs>(args)...);
 	}
-	return obj;
+	InterlockedIncrement64(&mActiveCount);
+
+	return reinterpret_cast<T*>oldTop;
 }
 
 template<typename T>
@@ -100,9 +143,27 @@ inline void ObjectPool<T>::ReleaseObject(T* obj)
 	{
 		obj->T::~T();
 	}
-	mPool.push_back(reinterpret_cast<char*>(obj));
-	--mActiveCount;
+	Node* oldTop;
+	Node* newTop = reinterpret_cast<Node*>(obj);
+
+	while (true)
+	{
+		oldTop = mTop;
+		newTop = reinterpret_cast<Node*>(obj);
+
+		unsigned short opCount = EXTRACT_OP_COUNT_FROM(oldTop);
+
+		newTop->Next = REMOVE_OP_COUNT_FROM(oldTop);
+		newTop = MAKE_TOP(oldTop, opCount + 1);
+
+		if (InterlockedCompareExchangePointer(&mTop, newTop, oldTop) == oldTop)
+		{
+			break;
+		}
+	}
+	InterlockedDecrement64(&mActiveCount);
 }
+
 
 template<typename T>
 inline size_t ObjectPool<T>::GetAllCount() const
