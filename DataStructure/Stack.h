@@ -1,35 +1,32 @@
 #pragma once
 
+#include "ObjectPool.h"
+
 template<typename T>
 class Stack final
 {
-public:
 	struct Node
 	{
-		T		Data;
-		Node*	Next;
+		T Data;
+		Node* Next;
 	};
 public:
-	Stack();
+	Stack(unsigned int capacity);
 	~Stack();
-	Stack(Stack<T>& other);
 
-	Stack<T>& operator=(Stack<T>& other);
-
-	void			Push(T data);
-	T				Pop();
-	bool			IsEmpty() const;
-	unsigned int	GetSize() const;
-
+	void	Push(T data);
+	T		Pop();
 private:
-	Node* mTop;
-	unsigned int mSize;
+	ObjectPool<Node>	mPool;
+	Node*				mTop;
+	unsigned int		mCapacity;
 };
 
 template<typename T>
-inline Stack<T>::Stack()
-	:	mTop(nullptr),
-		mSize(0)
+inline Stack<T>::Stack(unsigned int capacity)
+	:	mPool(capacity),
+		mTop(nullptr),
+		mCapacity(capacity)
 {
 }
 
@@ -37,63 +34,58 @@ template<typename T>
 inline Stack<T>::~Stack()
 {
 	Node* cur;
-
+	Node* next;
+	
 	cur = mTop;
 	while (cur != nullptr)
 	{
-		Node* next = cur->Next;
-		delete cur;
+		next = cur->Next;
+		mPool.ReleaseObject(cur);
 		cur = next;
 	}
 }
 
 template<typename T>
-inline Stack<T>::Stack(Stack<T>& other)
-	: mTop(other.mTop)
-	mCapacity(other.mCapacity)
+inline void Stack<T>::Push(T data)
 {
-	mStack = new T[mCapacity];
-	memcpy(mStack, other.mStack, sizeof(T) * mCapacity);
-}
+	Node* newTop = mPool.GetObject();
+	Node* oldTop;
 
-template<typename T>
-inline Stack<T>& Stack<T>::operator=(Stack<T>& other)
-{
-	if (mStack != nullptr)
+	newTop->Data = data;
+
+	while (true)
 	{
-		delete[] mStack;
+		oldTop = mTop;
+		newTop->Next = REMOVE_OP_COUNT_FROM(oldTop);
+
+		if (InterlockedCompareExchangePointer((PVOID*)&mTop, MAKE_TOP(newTop, EXTRACT_OP_COUNT_FROM(oldTop) + 1), oldTop) == oldTop)
+		{
+			break;
+		}
 	}
-	mStack = new T[other.mCapacity];
-	mCapacity = other.mCapacity;
-	mTop = other.mTop;
-
-	memcpy(mStack, other.mStack, sizeof(T) * mCapacity);
-
-	return *this;
-}
-
-template<typename T>
-inline void Stack<T>::Push(T val)
-{
-	if (mTop + 1 == mCapacity)
-	{
-		Reserve(mCapacity * 2);
-	}
-	mStack[++mTop] = val;
 }
 
 template<typename T>
 inline T Stack<T>::Pop()
 {
-	if (mTop == -1)
+	Node* oldTop;
+	Node* newTop;
+	 // 성능 하락지점 있다...
+	while (true)
 	{
+		oldTop = mTop;
+		newTop = MAKE_TOP(REMOVE_OP_COUNT_FROM(oldTop)->Next, EXTRACT_OP_COUNT_FROM(oldTop) + 1);
 
+		if (InterlockedCompareExchangePointer((PVOID*)&mTop, newTop, oldTop) == oldTop)
+		{
+			break;
+		}
 	}
-	return T();
-}
+	oldTop = REMOVE_OP_COUNT_FROM(oldTop);
 
-template<typename T>
-inline bool Stack<T>::IsEmpty()
-{
-	return false;
+	T data = oldTop->Data;
+
+	mPool.ReleaseObject(oldTop);
+
+	return data;
 }
