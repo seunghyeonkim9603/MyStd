@@ -79,7 +79,7 @@ void operator delete(void* address)
 
 			return;
 		}
-		if (history.Address == static_cast<char*>(address) - 4)
+		if (history.Address == static_cast<char*>(address) - sizeof(int32_t))
 		{
 			os.open(gManager.mLogFileName, std::ios_base::out | std::ios_base::app);
 			{
